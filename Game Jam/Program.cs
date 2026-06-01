@@ -1,199 +1,225 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Drawing;
+using System.Windows.Forms;
 
-const int Width = 20;
-const int Height = 15;
+ApplicationConfiguration.Initialize();
+Application.Run(new GameForm());
 
-char[,] screen = new char[Height, Width];
-int playerX = Width / 2;
-int playerY = Height - 1;
-int score = 0;
-int lives = 3;
-
-var walls = new List<(int x, int y)>();
-var bullets = new List<(int x, int y)>();
-
-InitializeWalls();
-
-Console.CursorVisible = false;
-int dropCounter = 0;
-const int DropSpeed = 12;
-
-while (true)
+public class GameForm : Form
 {
-    HandleInput();
-    UpdateBullets();
+    private const int WidthCells = 20;
+    private const int HeightCells = 15;
+    private const int CellSize = 28;
+    private const int BorderSize = 16;
+    private const int DropSpeed = 12;
 
-    dropCounter++;
-    if (dropCounter >= DropSpeed)
+    private readonly List<Point> walls = new();
+    private readonly List<Point> bullets = new();
+    private readonly System.Windows.Forms.Timer gameTimer;
+
+    private int playerX;
+    private int playerY;
+    private int score;
+    private int lives;
+    private int dropCounter;
+
+    public GameForm()
     {
+        Text = "Wall Destroyer";
+        DoubleBuffered = true;
+        KeyPreview = true;
+        BackColor = Color.Black;
+
+        playerX = WidthCells / 2;
+        playerY = HeightCells - 1;
+        score = 0;
+        lives = 3;
         dropCounter = 0;
-        MoveWallsDown();
+
+        ClientSize = new Size(WidthCells * CellSize, HeightCells * CellSize + 60);
+        StartPosition = FormStartPosition.CenterScreen;
+
+        InitializeWalls();
+
+        gameTimer = new System.Windows.Forms.Timer();
+        gameTimer.Interval = 80;
+        gameTimer.Tick += OnGameTick;
+        gameTimer.Start();
+
+        KeyDown += OnKeyDown;
     }
 
-    Draw();
-
-    if (walls.Count == 0)
+    protected override void OnPaint(PaintEventArgs e)
     {
-        ShowMessage("You win! Press any key to play again.");
-        dropCounter = 0;
-        Reset();
-        continue;
+        base.OnPaint(e);
+        DrawGame(e.Graphics);
     }
 
-    if (lives <= 0)
+    private void OnGameTick(object? sender, EventArgs e)
     {
-        ShowMessage("Game over! Press any key to play again.");
-        dropCounter = 0;
-        Reset();
-        continue;
-    }
-
-    System.Threading.Thread.Sleep(80);
-}
-
-void HandleInput()
-{
-    while (Console.KeyAvailable)
-    {
-        var key = Console.ReadKey(true).Key;
-        switch (key)
+        UpdateBullets();
+        dropCounter++;
+        if (dropCounter >= DropSpeed)
         {
-            case ConsoleKey.LeftArrow:
-            case ConsoleKey.A:
+            dropCounter = 0;
+            MoveWallsDown();
+        }
+
+        if (walls.Count == 0)
+        {
+            ShowEndMessage("You win!");
+            return;
+        }
+
+        if (lives <= 0)
+        {
+            ShowEndMessage("Game over!");
+            return;
+        }
+
+        Invalidate();
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        switch (e.KeyCode)
+        {
+            case Keys.Left:
+            case Keys.A:
                 playerX = Math.Max(0, playerX - 1);
                 break;
-            case ConsoleKey.RightArrow:
-            case ConsoleKey.D:
-                playerX = Math.Min(Width - 1, playerX + 1);
+            case Keys.Right:
+            case Keys.D:
+                playerX = Math.Min(WidthCells - 1, playerX + 1);
                 break;
-            case ConsoleKey.Spacebar:
-                bullets.Add((playerX, playerY - 1));
+            case Keys.Space:
+                bullets.Add(new Point(playerX, playerY - 1));
                 break;
-            case ConsoleKey.Q:
-                Environment.Exit(0);
+            case Keys.Q:
+                Close();
                 break;
         }
-    }
-}
 
-void UpdateBullets()
-{
-    for (int i = bullets.Count - 1; i >= 0; i--)
-    {
-        var bullet = bullets[i];
-        int newY = bullet.y - 1;
-        if (newY < 0)
-        {
-            bullets.RemoveAt(i);
-            continue;
-        }
-
-        var hitWall = walls.FindIndex(w => w.x == bullet.x && w.y == newY);
-        if (hitWall >= 0)
-        {
-            walls.RemoveAt(hitWall);
-            bullets.RemoveAt(i);
-            score += 10;
-            continue;
-        }
-
-        bullets[i] = (bullet.x, newY);
-    }
-}
-
-void MoveWallsDown()
-{
-    for (int i = 0; i < walls.Count; i++)
-    {
-        walls[i] = (walls[i].x, walls[i].y + 1);
+        Invalidate();
     }
 
-    for (int i = walls.Count - 1; i >= 0; i--)
+    private void UpdateBullets()
     {
-        if (walls[i].y >= playerY)
+        for (int i = bullets.Count - 1; i >= 0; i--)
         {
-            walls.RemoveAt(i);
-            lives--;
+            var bullet = bullets[i];
+            int newY = bullet.Y - 1;
+            if (newY < 0)
+            {
+                bullets.RemoveAt(i);
+                continue;
+            }
+
+            int hitIndex = walls.FindIndex(w => w.X == bullet.X && w.Y == newY);
+            if (hitIndex >= 0)
+            {
+                walls.RemoveAt(hitIndex);
+                bullets.RemoveAt(i);
+                score += 10;
+                continue;
+            }
+
+            bullets[i] = new Point(bullet.X, newY);
         }
     }
-}
 
-void Draw()
-{
-    ClearScreenArray();
-    DrawWalls();
-    DrawPlayer();
-    DrawBullets();
-    RenderScreen();
-}
-
-void ClearScreenArray()
-{
-    for (int y = 0; y < Height; y++)
-    for (int x = 0; x < Width; x++)
-        screen[y, x] = ' ';
-}
-
-void DrawWalls()
-{
-    foreach (var wall in walls)
+    private void MoveWallsDown()
     {
-        screen[wall.y, wall.x] = '#';
+        for (int i = 0; i < walls.Count; i++)
+        {
+            walls[i] = new Point(walls[i].X, walls[i].Y + 1);
+        }
+
+        for (int i = walls.Count - 1; i >= 0; i--)
+        {
+            if (walls[i].Y >= playerY)
+            {
+                walls.RemoveAt(i);
+                lives--;
+            }
+        }
     }
-}
 
-void DrawPlayer()
-{
-    screen[playerY, playerX] = '^';
-}
-
-void DrawBullets()
-{
-    foreach (var bullet in bullets)
+    private void DrawGame(Graphics g)
     {
-        if (bullet.y >= 0 && bullet.y < Height)
-            screen[bullet.y, bullet.x] = '|';
-    }
-}
+        g.Clear(Color.Black);
 
-void RenderScreen()
-{
-    Console.SetCursorPosition(0, 0);
-    for (int y = 0; y < Height; y++)
+        using var wallBrush = new SolidBrush(Color.LightGray);
+        using var playerBrush = new SolidBrush(Color.Cyan);
+        using var bulletBrush = new SolidBrush(Color.Red);
+        using var gridPen = new Pen(Color.DimGray);
+
+        for (int y = 0; y < HeightCells; y++)
+        {
+            for (int x = 0; x < WidthCells; x++)
+            {
+                Rectangle cellRect = new(x * CellSize, y * CellSize, CellSize, CellSize);
+                g.DrawRectangle(gridPen, cellRect);
+            }
+        }
+
+        foreach (var wall in walls)
+        {
+            Rectangle cellRect = new(wall.X * CellSize + 1, wall.Y * CellSize + 1, CellSize - 2, CellSize - 2);
+            g.FillRectangle(wallBrush, cellRect);
+        }
+
+        foreach (var bullet in bullets)
+        {
+            Rectangle bulletRect = new(bullet.X * CellSize + CellSize / 3, bullet.Y * CellSize + 2, CellSize / 3, CellSize / 2);
+            g.FillRectangle(bulletBrush, bulletRect);
+        }
+
+        Point playerTop = new(playerX * CellSize + CellSize / 2, playerY * CellSize + 4);
+        Point playerLeft = new(playerX * CellSize + 4, playerY * CellSize + CellSize - 4);
+        Point playerRight = new(playerX * CellSize + CellSize - 4, playerY * CellSize + CellSize - 4);
+        g.FillPolygon(playerBrush, new[] { playerTop, playerLeft, playerRight });
+
+        using var textBrush = new SolidBrush(Color.White);
+        g.DrawString($"Score: {score}   Lives: {lives}", new Font("Consolas", 12), textBrush, 8, HeightCells * CellSize + 6);
+        g.DrawString("Use A/D or arrows to move, Space to shoot, Q to quit", new Font("Consolas", 10), textBrush, 8, HeightCells * CellSize + 26);
+    }
+
+    private void InitializeWalls()
     {
-        for (int x = 0; x < Width; x++)
-            Console.Write(screen[y, x]);
-        Console.WriteLine();
+        walls.Clear();
+        for (int y = 1; y <= 4; y++)
+        {
+            for (int x = 2; x < WidthCells - 2; x += 2)
+            {
+                walls.Add(new Point(x, y));
+            }
+        }
     }
-    Console.WriteLine(new string('-', Width));
-    Console.WriteLine($"Score: {score}   Lives: {lives}   Press A/D or Arrow keys to move, Space to shoot, Q to quit");
-}
 
-void InitializeWalls()
-{
-    walls.Clear();
-    for (int y = 1; y <= 4; y++)
-    for (int x = 2; x < Width - 2; x += 2)
-        walls.Add((x, y));
-}
+    private void ShowEndMessage(string title)
+    {
+        gameTimer.Stop();
+        var result = MessageBox.Show(this, $"{title}\r\nFinal Score: {score}\r\nPlay again?", "Wall Destroyer", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (result == DialogResult.Yes)
+        {
+            ResetGame();
+            gameTimer.Start();
+        }
+        else
+        {
+            Close();
+        }
+    }
 
-void ShowMessage(string message)
-{
-    Console.Clear();
-    Console.SetCursorPosition(0, 0);
-    Console.WriteLine(message);
-    Console.WriteLine($"Final Score: {score}");
-    Console.WriteLine("Press any key to continue...");
-    Console.ReadKey(true);
-}
-
-void Reset()
-{
-    score = 0;
-    lives = 3;
-    bullets.Clear();
-    playerX = Width / 2;
-    InitializeWalls();
-    Console.Clear();
+    private void ResetGame()
+    {
+        score = 0;
+        lives = 3;
+        bullets.Clear();
+        playerX = WidthCells / 2;
+        playerY = HeightCells - 1;
+        dropCounter = 0;
+        InitializeWalls();
+        Invalidate();
+    }
 }
