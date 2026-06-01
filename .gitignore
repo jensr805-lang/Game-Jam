@@ -1,0 +1,44 @@
+## Generated .gitignore for C# / Visual Studio projects
+
+# Build directories
+bin/
+obj/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+
+# Rider
+.idea/
+
+# NuGet
+packages/
+*.nupkg
+project.assets.json
+project.lock.json
+
+# Build outputs
+*.dll
+*.exe
+*.pdb
+
+# Logs and databases
+*.log
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+*.local
+secret*.json
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
