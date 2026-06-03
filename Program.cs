@@ -12,9 +12,12 @@ public class GameForm : Form
     private const int BorderSize = 16;
     private const int DropSpeed = 12;
 
-    private readonly List<Point> walls = new();
+    private record struct Wall(Point Location, bool IsExplosive);
+
+    private readonly List<Wall> walls = new();
     private readonly List<Point> bullets = new();
     private readonly System.Windows.Forms.Timer gameTimer;
+    private readonly Random random = new();
 
     private int playerX;
     private int playerY;
@@ -114,12 +117,22 @@ public class GameForm : Form
                 continue;
             }
 
-            int hitIndex = walls.FindIndex(w => w.X == bullet.X && w.Y == newY);
+            int hitIndex = walls.FindIndex(w => w.Location.X == bullet.X && w.Location.Y == newY);
             if (hitIndex >= 0)
             {
-                walls.RemoveAt(hitIndex);
+                var hitWall = walls[hitIndex];
+                if (hitWall.IsExplosive)
+                {
+                    int destroyed = RemoveWallsNear(hitWall.Location);
+                    score += destroyed * 10;
+                }
+                else
+                {
+                    walls.RemoveAt(hitIndex);
+                    score += 10;
+                }
+
                 bullets.RemoveAt(i);
-                score += 10;
                 continue;
             }
 
@@ -127,16 +140,22 @@ public class GameForm : Form
         }
     }
 
+    private int RemoveWallsNear(Point center)
+    {
+        return walls.RemoveAll(w => Math.Abs(w.Location.X - center.X) <= 1 && Math.Abs(w.Location.Y - center.Y) <= 1);
+    }
+
     private void MoveWallsDown()
     {
         for (int i = 0; i < walls.Count; i++)
         {
-            walls[i] = new Point(walls[i].X, walls[i].Y + 1);
+            var wall = walls[i];
+            walls[i] = new Wall(new Point(wall.Location.X, wall.Location.Y + 1), wall.IsExplosive);
         }
 
         for (int i = walls.Count - 1; i >= 0; i--)
         {
-            if (walls[i].Y >= playerY)
+            if (walls[i].Location.Y >= playerY)
             {
                 walls.RemoveAt(i);
                 lives--;
@@ -148,7 +167,8 @@ public class GameForm : Form
     {
         g.Clear(Color.Black);
 
-        using var wallBrush = new SolidBrush(Color.LightGray);
+        using var normalWallBrush = new SolidBrush(Color.LightGray);
+        using var explosiveWallBrush = new SolidBrush(Color.OrangeRed);
         using var playerBrush = new SolidBrush(Color.Cyan);
         using var bulletBrush = new SolidBrush(Color.Red);
         using var gridPen = new Pen(Color.DimGray);
@@ -164,8 +184,8 @@ public class GameForm : Form
 
         foreach (var wall in walls)
         {
-            Rectangle cellRect = new(wall.X * CellSize + 1, wall.Y * CellSize + 1, CellSize - 2, CellSize - 2);
-            g.FillRectangle(wallBrush, cellRect);
+            Rectangle cellRect = new(wall.Location.X * CellSize + 1, wall.Location.Y * CellSize + 1, CellSize - 2, CellSize - 2);
+            g.FillRectangle(wall.IsExplosive ? explosiveWallBrush : normalWallBrush, cellRect);
         }
 
         foreach (var bullet in bullets)
@@ -191,7 +211,8 @@ public class GameForm : Form
         {
             for (int x = 2; x < WidthCells - 2; x += 2)
             {
-                walls.Add(new Point(x, y));
+                bool isExplosive = random.Next(0, 5) == 0;
+                walls.Add(new Wall(new Point(x, y), isExplosive));
             }
         }
     }
