@@ -2,15 +2,84 @@
 using System.Windows.Forms;
 
 ApplicationConfiguration.Initialize();
-Application.Run(new GameForm());
+Application.Run(new MainMenuForm());
+
+public class MainMenuForm : Form
+{
+    private readonly Button easyButton;
+    private readonly Button mediumButton;
+    private readonly Button hardButton;
+    private readonly Label titleLabel;
+    private readonly Label instructionLabel;
+
+    public MainMenuForm()
+    {
+        Text = "Wall Destroyer";
+        DoubleBuffered = true;
+        StartPosition = FormStartPosition.CenterScreen;
+        BackColor = Color.Black;
+        ClientSize = new Size(20 * 28, 15 * 28 + 100);
+
+        titleLabel = new Label
+        {
+            Text = "Wall Destroyer",
+            ForeColor = Color.White,
+            BackColor = Color.Transparent,
+            Font = new Font("Consolas", 24, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point((ClientSize.Width - 340) / 2, 30)
+        };
+
+        instructionLabel = new Label
+        {
+            Text = "Select difficulty to start",
+            ForeColor = Color.White,
+            BackColor = Color.Transparent,
+            Font = new Font("Consolas", 12, FontStyle.Regular),
+            AutoSize = true,
+            Location = new Point((ClientSize.Width - 240) / 2, 90)
+        };
+
+        easyButton = CreateMenuButton("Easy", new Point(40, 160));
+        mediumButton = CreateMenuButton("Medium", new Point(160, 160));
+        hardButton = CreateMenuButton("Hard", new Point(280, 160));
+
+        Controls.Add(titleLabel);
+        Controls.Add(instructionLabel);
+        Controls.Add(easyButton);
+        Controls.Add(mediumButton);
+        Controls.Add(hardButton);
+    }
+
+    private Button CreateMenuButton(string text, Point location)
+    {
+        var button = new Button
+        {
+            Text = text,
+            Size = new Size(100, 40),
+            Location = location,
+            Font = new Font("Consolas", 10, FontStyle.Bold)
+        };
+        button.Click += OnDifficultyButtonClick;
+        return button;
+    }
+
+    private void OnDifficultyButtonClick(object? sender, EventArgs e)
+    {
+        int speed = sender == easyButton ? 16 : sender == mediumButton ? 12 : 8;
+        var gameForm = new GameForm(speed);
+        gameForm.FormClosed += (s, args) => Show();
+        Hide();
+        gameForm.Show();
+    }
+}
 
 public class GameForm : Form
 {
     private const int WidthCells = 20;
     private const int HeightCells = 15;
     private const int CellSize = 28;
-    private const int BorderSize = 16;
-    private const int DropSpeed = 12;
+    private const int DefaultDropSpeed = 12;
 
     private readonly List<Point> walls = new();
     private readonly List<Point> bullets = new();
@@ -21,22 +90,23 @@ public class GameForm : Form
     private int score;
     private int lives;
     private int dropCounter;
+    private int dropSpeed;
 
-    public GameForm()
+    public GameForm(int initialDropSpeed)
     {
         Text = "Wall Destroyer";
         DoubleBuffered = true;
         KeyPreview = true;
         BackColor = Color.Black;
+        ClientSize = new Size(WidthCells * CellSize, HeightCells * CellSize + 60);
+        StartPosition = FormStartPosition.CenterScreen;
 
         playerX = WidthCells / 2;
         playerY = HeightCells - 1;
         score = 0;
         lives = 3;
         dropCounter = 0;
-
-        ClientSize = new Size(WidthCells * CellSize, HeightCells * CellSize + 60);
-        StartPosition = FormStartPosition.CenterScreen;
+        dropSpeed = initialDropSpeed;
 
         InitializeWalls();
 
@@ -58,7 +128,7 @@ public class GameForm : Form
     {
         UpdateBullets();
         dropCounter++;
-        if (dropCounter >= DropSpeed)
+        if (dropCounter >= dropSpeed)
         {
             dropCounter = 0;
             MoveWallsDown();
